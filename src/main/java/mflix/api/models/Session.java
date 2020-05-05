@@ -4,6 +4,7 @@ import org.bson.codecs.pojo.annotations.BsonProperty;
 
 public class Session {
 
+    /** unique index */
     @BsonProperty(value = "user_id")
     private String userId;
 

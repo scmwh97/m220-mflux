@@ -7,6 +7,7 @@ import java.util.Map;
 public class User {
 
     private String name;
+    /** unique index */
     private String email;
     @JsonIgnore
     private String hashedpw;

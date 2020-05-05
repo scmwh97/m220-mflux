@@ -11,7 +11,9 @@ public class StringObjectIdCodec implements Codec<String> {
 
   @Override
   public void encode(
-      final BsonWriter writer, final String value, final EncoderContext encoderContext) {
+          final BsonWriter writer,
+          final String value,
+          final EncoderContext encoderContext) {
     writer.writeObjectId(new ObjectId(value));
   }
 
@@ -21,7 +23,8 @@ public class StringObjectIdCodec implements Codec<String> {
   }
 
   @Override
-  public String decode(final BsonReader reader, final DecoderContext decoderContext) {
+  public String decode(final BsonReader reader,
+                       final DecoderContext decoderContext) {
     return reader.readObjectId().toHexString();
   }
 }

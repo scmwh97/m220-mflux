@@ -11,6 +11,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.mongodb.client.model.Filters.*;
+
 /**
  * @see com.mongodb.client.model.Facet
  * @see com.mongodb.client.model.Accumulators
@@ -42,7 +44,7 @@ public class UsingAggregationBuilders extends AbstractLesson {
      */
 
     // express the match criteria
-    Bson countryPT = Filters.eq("countries", country);
+    Bson countryPT = eq("countries", country);
 
     /*
     The aggregation() collection method takes a list of Bson objects that
@@ -126,7 +128,7 @@ public class UsingAggregationBuilders extends AbstractLesson {
     - $match to find all movies produced in portugal
      */
     String country = "Portugal";
-    Bson countryPT = Filters.eq("countries", country);
+    Bson countryPT = eq("countries", country);
     Bson matchStage = Aggregates.match(countryPT);
 
     /*
@@ -309,7 +311,7 @@ public class UsingAggregationBuilders extends AbstractLesson {
     Bson facetsStage = Aggregates.facet(castMembersFacet, genresCountFacet, yearBucketFacet);
 
     // match stage
-    Bson matchStage = Aggregates.match(Filters.eq("countries", "Portugal"));
+    Bson matchStage = Aggregates.match(eq("countries", "Portugal"));
 
     // putting it all together
     pipeline.add(matchStage);

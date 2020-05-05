@@ -1,8 +1,11 @@
 package mflix.api.daos;
 
+import com.mongodb.client.AggregateIterable;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.*;
+import mflix.api.models.Movie;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
@@ -11,8 +14,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+
+import static com.mongodb.client.model.Filters.*;
+import static com.mongodb.client.model.Projections.*;
 
 @Component
 public class MovieDao extends AbstractMFlixDao {
@@ -60,15 +67,38 @@ public class MovieDao extends AbstractMFlixDao {
             return null;
         }
 
-        List<Bson> pipeline = new ArrayList<>();
-        // match stage to find movie
-        Bson match = Aggregates.match(Filters.eq("_id", new ObjectId(movieId)));
-        pipeline.add(match);
-        // TODO> Ticket: Get Comments - implement the lookup stage that allows the comments to
-        // retrieved with Movies.
-        Document movie = moviesCollection.aggregate(pipeline).first();
+        /*
+         * Requires the MongoDB Java Driver.
+         * https://mongodb.github.io/mongo-java-driver
+         */
+        List<Bson> bsonPipeline = Arrays.asList(
+                new Document("$match",
+                        new Document("_id", new ObjectId(movieId))),
+                new Document("$lookup",
+                        new Document("from", "comments")
+                                .append("let",
+                                        new Document("id", "$_id"))
+                                .append("pipeline", Arrays.asList(new Document("$match",
+                                                new Document("$expr",
+                                                        new Document("$eq", Arrays.asList("$movie_id", "$$id")))),
+                                        new Document("$sort",
+                                                new Document("date", -1L))))
+                                .append("as", "comments")));
 
-        return movie;
+        return  moviesCollection.aggregate(bsonPipeline).first();
+
+
+
+//        List<Bson> pipeline = new ArrayList<>();
+//        // match stage to find movie
+//        Bson match = Aggregates.match(Filters.eq("_id", new ObjectId(movieId)));
+//        pipeline.add(match);
+//        Bson lookup = Aggregates.lookup("comments", "_id", "movie_id", "comments");
+//        pipeline.add(lookup);
+//        // TODO> Ticket: Get Comments - implement the lookup stage that allows the comments to
+//        // retrieved with Movies.
+//        return = moviesCollection.aggregate(pipeline).first();
+
     }
 
     /**
@@ -118,11 +148,10 @@ public class MovieDao extends AbstractMFlixDao {
      */
     public List<Document> getMoviesByCountry(String... country) {
 
-        Bson queryFilter = new Document();
-        Bson projection = new Document();
-        //TODO> Ticket: Projection - implement the query and projection required by the unit test
+        Bson eqFilter = all("countries", country);
+        Bson projection = fields(fields(include("title")));
         List<Document> movies = new ArrayList<>();
-
+        moviesCollection.find(eqFilter).projection(projection).into(movies);
         return movies;
     }
 
@@ -162,10 +191,9 @@ public class MovieDao extends AbstractMFlixDao {
      * @return List of documents sorted by sortKey that match the cast selector.
      */
     public List<Document> getMoviesByCast(String sortKey, int limit, int skip, String... cast) {
-        Bson castFilter = null;
-        Bson sort = null;
-        //TODO> Ticket: Subfield Text Search - implement the expected cast
-        // filter and sort
+        Bson castFilter = in("cast", cast);
+        Bson sort = Sorts.descending(sortKey);
+
         List<Document> movies = new ArrayList<>();
         moviesCollection
                 .find(castFilter)
@@ -188,14 +216,14 @@ public class MovieDao extends AbstractMFlixDao {
      */
     public List<Document> getMoviesByGenre(String sortKey, int limit, int skip, String... genres) {
         // query filter
-        Bson castFilter = Filters.in("genres", genres);
+        Bson castFilter = in("genres", genres);
         // sort key
         Bson sort = Sorts.descending(sortKey);
         List<Document> movies = new ArrayList<>();
         // TODO > Ticket: Paging - implement the necessary cursor methods to support simple
         // pagination like skip and limit in the code below
-        moviesCollection.find(castFilter).sort(sort).iterator()
-        .forEachRemaining(movies::add);
+        moviesCollection.find(castFilter).sort(sort).limit(limit).skip(skip).iterator()
+                .forEachRemaining(movies::add);
         return movies;
     }
 
@@ -264,7 +292,7 @@ public class MovieDao extends AbstractMFlixDao {
         List<Document> movies = new ArrayList<>();
         String sortKey = "tomatoes.viewer.numReviews";
         Bson skipStage = Aggregates.skip(skip);
-        Bson matchStage = Aggregates.match(Filters.in("cast", cast));
+        Bson matchStage = Aggregates.match(in("cast", cast));
         Bson sortStage = Aggregates.sort(Sorts.descending(sortKey));
         Bson limitStage = Aggregates.limit(limit);
         Bson facetStage = buildFacetStage();
@@ -276,6 +304,10 @@ public class MovieDao extends AbstractMFlixDao {
         // Your job is to order the stages correctly in the pipeline.
         // Starting with the `matchStage` add the remaining stages.
         pipeline.add(matchStage);
+        pipeline.add(sortStage);
+        pipeline.add(skipStage);
+        pipeline.add(limitStage);
+        pipeline.add(facetStage);
 
         moviesCollection.aggregate(pipeline).iterator().forEachRemaining(movies::add);
         return movies;
@@ -322,7 +354,7 @@ public class MovieDao extends AbstractMFlixDao {
      * @return number of matching documents.
      */
     public long getCastSearchCount(String... cast) {
-        return this.moviesCollection.countDocuments(Filters.in("cast", cast));
+        return this.moviesCollection.countDocuments(in("cast", cast));
     }
 
     /**
@@ -332,6 +364,6 @@ public class MovieDao extends AbstractMFlixDao {
      * @return number of matching documents.
      */
     public long getGenresSearchCount(String... genres) {
-        return this.moviesCollection.countDocuments(Filters.in("genres", genres));
+        return this.moviesCollection.countDocuments(in("genres", genres));
     }
 }
