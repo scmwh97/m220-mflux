@@ -1,16 +1,10 @@
 package mflix.api.daos;
 
 import com.mongodb.MongoClientSettings;
-import com.mongodb.MongoWriteException;
-import com.mongodb.ReadConcern;
+import com.mongodb.MongoException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Sorts;
-import com.mongodb.client.model.Updates;
-import com.mongodb.client.result.DeleteResult;
-import com.mongodb.client.result.UpdateResult;
 import mflix.api.models.Comment;
 import mflix.api.models.Critic;
 import org.bson.Document;
@@ -23,12 +17,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
 
-import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.combine;
+import static com.mongodb.client.model.Updates.set;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
@@ -81,7 +79,13 @@ public class CommentDao extends AbstractMFlixDao {
         // comment.
         // TODO> Ticket - Handling Errors: Implement a try catch block to
         // handle a potential write exception when given a wrong commentId.
-        return null;
+        try {
+            Assert.hasText(comment.getId(), "comment id");
+            commentCollection.insertOne(comment);
+            return comment;
+        } catch (IllegalArgumentException| MongoException e) {
+            throw new IncorrectDaoOperation(e.getMessage());
+        }
     }
 
     /**
@@ -103,7 +107,17 @@ public class CommentDao extends AbstractMFlixDao {
         // user own comments
         // TODO> Ticket - Handling Errors: Implement a try catch block to
         // handle a potential write exception when given a wrong commentId.
-        return false;
+        try {
+            Assert.hasText(commentId, "commentId");
+            Assert.hasText(email, "email");
+
+            Bson updates = set("text", text);
+            Bson filter = and( eq("_id", new ObjectId(commentId)),eq("email", email));
+            return commentCollection.updateOne(filter, updates).getModifiedCount() == 1;
+
+        } catch (IllegalArgumentException | MongoException e) {
+            throw new IncorrectDaoOperation(e.getMessage());
+        }
     }
 
     /**
@@ -119,7 +133,8 @@ public class CommentDao extends AbstractMFlixDao {
         // TIP: make sure to match only users that own the given commentId
         // TODO> Ticket Handling Errors - Implement a try catch block to
         // handle a potential write exception when given a wrong commentId.
-        return false;
+        Bson filter = and(eq("_id", new ObjectId(commentId)), eq("email", email));
+        return commentCollection.deleteOne(filter).getDeletedCount() ==1;
     }
 
     /**
