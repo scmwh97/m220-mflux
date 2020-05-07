@@ -4,7 +4,7 @@ import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Aggregates;
 import mflix.api.models.Comment;
 import mflix.api.models.Critic;
 import org.bson.Document;
@@ -21,11 +21,9 @@ import org.springframework.util.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.eq;
-import static com.mongodb.client.model.Updates.combine;
 import static com.mongodb.client.model.Updates.set;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
@@ -37,6 +35,8 @@ public class CommentDao extends AbstractMFlixDao {
     private final Logger log;
     private MongoCollection<Comment> commentCollection;
     private CodecRegistry pojoCodecRegistry;
+
+    // private MongoCollection commentsNative;
 
     @Autowired
     public CommentDao(
@@ -50,6 +50,8 @@ public class CommentDao extends AbstractMFlixDao {
                         fromProviders(PojoCodecProvider.builder().automatic(true).build()));
         this.commentCollection =
                 db.getCollection(COMMENT_COLLECTION, Comment.class).withCodecRegistry(pojoCodecRegistry);
+
+        // this.commentsNative = db.getCollection(COMMENT_COLLECTION);
     }
 
     /**
@@ -152,6 +154,17 @@ public class CommentDao extends AbstractMFlixDao {
         // // guarantee for the returned documents. Once a commenter is in the
         // // top 20 of users, they become a Critic, so mostActive is composed of
         // // Critic objects.
+
+        List<Bson> pipeline = new ArrayList<>();
+        pipeline.add(Aggregates.sortByCount("$email"));
+        pipeline.add(Aggregates.limit(20));
+
+//        AggregateIterable<Document> aggregates = commentsNative.aggregate(pipeline);
+//        for (Document doc : aggregates) {
+//            mostActive.add(new Critic(doc.get("_id", String.class), doc.get("count", Integer.class)));
+//        }
+
+        commentCollection.aggregate(pipeline, Critic.class).into(mostActive);
         return mostActive;
     }
 }
